@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revit OBJ+MTL to Google Earth GLB Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1e1e1e;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+        }
+
+        .card {
+            background-color: #252526;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            width: 440px;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.3rem;
+            color: #007acc;
+        }
+
+        .field-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            color: #cccccc;
+        }
+
+        input[type="file"], select, input[type="range"] {
+            width: 100%;
+            background: #3c3c3c;
+            border: 1px solid #555555;
+            color: #fff;
+            padding: 8px;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .checkbox-group input {
+            width: auto;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #1177bb;
+        }
+
+        button:disabled {
+            background-color: #444;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            word-wrap: break-word;
+            color: #9cdcfe;
+        }
+
+        .range-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .range-container span {
+            font-size: 0.85rem;
+            color: #007acc;
+            font-weight: bold;
+        }
+    </style>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+
+<div class="card">
+    <h2>Revit OBJ to Google Earth GLB</h2>
+    
+    <div class="field-group">
+        <label for="objInput">1. Select OBJ File (*.obj):</label>
+        <input type="file" id="objInput" accept=".obj">
+    </div>
+
+    <div class="field-group">
+        <label for="mtlInput">2. Select MTL File (Optional):</label>
+        <input type="file" id="mtlInput" accept=".mtl">
+    </div>
+
+    <div class="field-group">
+        <label for="imgInput">3. Select Texture Maps (Optional):</label>
+        <input type="file" id="imgInput" accept="image/*" multiple>
+    </div>
+
+    <hr style="border: 0.5px solid #3c3c3c; margin: 20px 0;">
+
+    <div class="field-group">
+        <label for="brightness">Brightness Multiplier (Fixes Revit Dark Models):</label>
+        <div class="range-container">
+            <input type="range" id="brightness" min="1.0" max="3.0" step="0.1" value="1.5">
+            <span id="brightnessValue">1.5x</span>
+        </div>
+    </div>
+
+    <div class="checkbox-group">
+        <input type="checkbox" id="unlitToggle">
+        <label for="unlitToggle">Make Materials Unlit (Self-Illuminated for GIS)</label>
+    </div>
+
+    <div class="checkbox-group">
+        <input type="checkbox" id="doubleSideToggle" checked>
+        <label for="doubleSideToggle">Fix Missing Back-Faces (Double Sided)</label>
+    </div>
+
+    <div class="checkbox-group">
+        <input type="checkbox" id="rotateToggle" checked>
+        <label for="rotateToggle">Fix Rotation (-90° X-Axis for glTF)</label>
+    </div>
+
+    <button id="convertBtn">Export Optimized GLB</button>
+
+    <div id="status"></div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+    const objInput = document.getElementById('objInput');
+    const mtlInput = document.getElementById('mtlInput');
+    const imgInput = document.getElementById('imgInput');
+    const brightnessInput = document.getElementById('brightness');
+    const brightnessValue = document.getElementById('brightnessValue');
+    const unlitToggle = document.getElementById('unlitToggle');
+    const doubleSideToggle = document.getElementById('doubleSideToggle');
+    const rotateToggle = document.getElementById('rotateToggle');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusDiv = document.getElementById('status');
+
+    brightnessInput.addEventListener('input', () => {
+        brightnessValue.textContent = `${brightnessInput.value}x`;
+    });
+
+    convertBtn.addEventListener('click', async () => {
+        const objFile = objInput.files[0];
+        const mtlFile = mtlInput.files[0];
+        const textureFiles = Array.from(imgInput.files);
+
+        if (!objFile) {
+            alert("Please select at least an OBJ file.");
+            return;
+        }
+
+        statusDiv.textContent = "Processing files...";
+        convertBtn.disabled = true;
+
+        try {
+            // Blob URLs for local image maps
+            const textureMap = new Map();
+            textureFiles.forEach(file => {
+                textureMap.set(file.name.toLowerCase(), URL.createObjectURL(file));
+            });
+
+            const manager = new THREE.LoadingManager();
+            manager.setURLModifier((url) => {
+                const fileName = url.split('/').pop().toLowerCase();
+                if (textureMap.has(fileName)) {
+                    return textureMap.get(fileName);
+                }
+                return url;
+            });
+
+            let materials = null;
+
+            // 1. Parse MTL File
+            if (mtlFile) {
+                statusDiv.textContent = "Parsing materials...";
+                const mtlText = await mtlFile.text();
+                const mtlLoader = new MTLLoader(manager);
+                materials = mtlLoader.parse(mtlText, '');
+                materials.preload();
+            }
+
+            // 2. Parse OBJ File
+            statusDiv.textContent = "Loading 3D model...";
+            const objText = await objFile.text();
+            const objLoader = new OBJLoader(manager);
+            if (materials) {
+                objLoader.setMaterials(materials);
+            }
+            const object = objLoader.parse(objText);
+
+            // 3. Optimize Materials for Google Earth Web
+            statusDiv.textContent = "Optimizing textures & lighting...";
+            const factor = parseFloat(brightnessInput.value);
+            const makeUnlit = unlitToggle.checked;
+            const makeDoubleSided = doubleSideToggle.checked;
+
+            object.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const processMat = (mat) => {
+                        // Standardize to MeshStandardMaterial for glTF PBR compliance
+                        let newMat = mat;
+
+                        if (makeUnlit) {
+                            newMat = new THREE.MeshBasicMaterial({
+                                map: mat.map,
+                                color: mat.color.clone().multiplyScalar(factor),
+                                side: makeDoubleSided ? THREE.DoubleSide : THREE.FrontSide
+                            });
+                        } else {
+                            if (!mat.isMeshStandardMaterial) {
+                                newMat = new THREE.MeshStandardMaterial({
+                                    map: mat.map,
+                                    color: mat.color,
+                                    roughness: 0.6,
+                                    metalness: 0.1
+                                });
+                            }
+                            // Brighten base color to counteract web engine dark ambient lighting
+                            newMat.color.multiplyScalar(factor);
+                            if (makeDoubleSided) newMat.side = THREE.DoubleSide;
+                        }
+
+                        return newMat;
+                    };
+
+                    if (Array.isArray(child.material)) {
+                        child.material = child.material.map(m => processMat(m));
+                    } else {
+                        child.material = processMat(child.material);
+                    }
+                }
+            });
+
+            // 4. Orientation Adjustments
+            if (rotateToggle.checked) {
+                object.rotation.x = -Math.PI / 2;
+            }
+
+            // 5. GLB Export
+            statusDiv.textContent = "Generating GLB...";
+            const exporter = new GLTFExporter();
+            
+            exporter.parse(
+                object,
+                (gltf) => {
+                    const blob = new Blob([gltf], { type: 'application/octet-stream' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = objFile.name.replace(/\.obj$/i, '') + '_GE.glb';
+                    link.click();
+
+                    statusDiv.textContent = "Success! Optimized GLB exported.";
+                    convertBtn.disabled = false;
+                },
+                (error) => {
+                    statusDiv.textContent = "Export error: " + error;
+                    convertBtn.disabled = false;
+                },
+                { binary: true }
+            );
+
+        } catch (err) {
+            statusDiv.textContent = "Error: " + err.message;
+            convertBtn.disabled = false;
+        }
+    });
+</script>
+
+</body>
+</html>
