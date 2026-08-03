@@ -205,7 +205,6 @@
         convertBtn.disabled = true;
 
         try {
-            // Blob URLs for local image maps
             const textureMap = new Map();
             textureFiles.forEach(file => {
                 textureMap.set(file.name.toLowerCase(), URL.createObjectURL(file));
@@ -240,8 +239,8 @@
             }
             const object = objLoader.parse(objText);
 
-            // 3. Optimize Materials for Google Earth Web
-            statusDiv.textContent = "Optimizing textures & lighting...";
+            // 3. Optimize Materials & Preserve Transparency
+            statusDiv.textContent = "Optimizing materials and transparency...";
             const factor = parseFloat(brightnessInput.value);
             const makeUnlit = unlitToggle.checked;
             const makeDoubleSided = doubleSideToggle.checked;
@@ -249,27 +248,30 @@
             object.traverse((child) => {
                 if (child.isMesh && child.material) {
                     const processMat = (mat) => {
-                        // Standardize to MeshStandardMaterial for glTF PBR compliance
-                        let newMat = mat;
+                        // Preserve transparency state from original MTL
+                        const isTransparent = mat.transparent || (mat.opacity < 1.0);
+                        const matOpacity = mat.opacity !== undefined ? mat.opacity : 1.0;
+
+                        let newMat;
 
                         if (makeUnlit) {
                             newMat = new THREE.MeshBasicMaterial({
                                 map: mat.map,
                                 color: mat.color.clone().multiplyScalar(factor),
+                                transparent: isTransparent,
+                                opacity: matOpacity,
                                 side: makeDoubleSided ? THREE.DoubleSide : THREE.FrontSide
                             });
                         } else {
-                            if (!mat.isMeshStandardMaterial) {
-                                newMat = new THREE.MeshStandardMaterial({
-                                    map: mat.map,
-                                    color: mat.color,
-                                    roughness: 0.6,
-                                    metalness: 0.1
-                                });
-                            }
-                            // Brighten base color to counteract web engine dark ambient lighting
-                            newMat.color.multiplyScalar(factor);
-                            if (makeDoubleSided) newMat.side = THREE.DoubleSide;
+                            newMat = new THREE.MeshStandardMaterial({
+                                map: mat.map,
+                                color: mat.color.clone().multiplyScalar(factor),
+                                roughness: 0.5,
+                                metalness: 0.1,
+                                transparent: isTransparent,
+                                opacity: matOpacity,
+                                side: makeDoubleSided ? THREE.DoubleSide : THREE.FrontSide
+                            });
                         }
 
                         return newMat;
@@ -283,7 +285,7 @@
                 }
             });
 
-            // 4. Orientation Adjustments
+            // 4. Orientation Fix (Revit Z-Up to GLTF Y-Up)
             if (rotateToggle.checked) {
                 object.rotation.x = -Math.PI / 2;
             }
