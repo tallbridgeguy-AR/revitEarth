@@ -67,12 +67,11 @@
         .drop-zone {
             border: 2px dashed var(--border-color);
             background: var(--dropzone-bg);
-            padding: 14px;
+            padding: 16px;
             border-radius: 8px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s ease;
-            position: relative;
         }
 
         .drop-zone:hover, .drop-zone.dragover {
@@ -81,13 +80,7 @@
         }
 
         .drop-zone input[type="file"] {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            opacity: 0;
-            cursor: pointer;
+            display: none;
         }
 
         .drop-zone-text {
@@ -229,7 +222,7 @@
     <div class="field-group">
         <label>1. Select OBJ File (*.obj):</label>
         <div class="drop-zone" id="objDropZone">
-            <span class="drop-zone-text" id="objText"><strong>Choose file</strong> or drag & drop .obj here</span>
+            <span class="drop-zone-text" id="objText"><strong>Click to browse</strong> or drag & drop .obj here</span>
             <input type="file" id="objInput" accept=".obj">
         </div>
     </div>
@@ -237,7 +230,7 @@
     <div class="field-group">
         <label>2. Select MTL File (Optional):</label>
         <div class="drop-zone" id="mtlDropZone">
-            <span class="drop-zone-text" id="mtlText"><strong>Choose file</strong> or drag & drop .mtl here</span>
+            <span class="drop-zone-text" id="mtlText"><strong>Click to browse</strong> or drag & drop .mtl here</span>
             <input type="file" id="mtlInput" accept=".mtl">
         </div>
     </div>
@@ -245,7 +238,7 @@
     <div class="field-group">
         <label>3. Select Texture Maps (Optional):</label>
         <div class="drop-zone" id="imgDropZone">
-            <span class="drop-zone-text" id="imgText"><strong>Choose files</strong> or drag & drop images here</span>
+            <span class="drop-zone-text" id="imgText"><strong>Click to browse</strong> or drag & drop images here</span>
             <input type="file" id="imgInput" accept="image/*" multiple>
         </div>
     </div>
@@ -320,9 +313,13 @@
         brightnessValue.textContent = `${brightnessInput.value}x`;
     });
 
-    // Robust file assignment using DataTransfer so drag-and-drop and clicks both populate correctly
+    // Clean drop zone handler linking box clicks and file drops directly
     function setupDropZone(dropZoneId, inputEl, labelEl, isMultiple = false) {
         const zone = document.getElementById(dropZoneId);
+
+        zone.addEventListener('click', () => {
+            inputEl.click();
+        });
 
         inputEl.addEventListener('change', () => {
             if (inputEl.files.length > 0) {
@@ -338,6 +335,7 @@
         ['dragenter', 'dragover'].forEach(eventName => {
             zone.addEventListener(eventName, (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 zone.classList.add('dragover');
             }, false);
         });
@@ -345,12 +343,14 @@
         ['dragleave', 'drop'].forEach(eventName => {
             zone.addEventListener(eventName, (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 zone.classList.remove('dragover');
             }, false);
         });
 
         zone.addEventListener('drop', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             const files = e.dataTransfer.files;
             if (files.length > 0) {
                 const dataTransfer = new DataTransfer();
