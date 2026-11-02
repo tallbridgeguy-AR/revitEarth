@@ -3,54 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Revit OBJ+MTL to Google Earth GLB Converter</title>
+    <title>Revit OBJ to Google Earth GLB Converter</title>
     <!-- Google Model Viewer Component for In-Browser 3D / AR Preview -->
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --success: #10b981;
+            --success-hover: #059669;
+            --bg-gradient: linear-gradient(135deg, #f0f4ff 0%, #e0e7ff 100%);
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --dropzone-bg: #f9fafb;
+            --dropzone-hover: #eef2ff;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #1e1e1e;
-            color: #ffffff;
+            background: var(--bg-gradient);
+            color: var(--text-main);
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            padding: 20px 0;
+            padding: 30px 10px;
         }
 
         .card {
-            background-color: #252526;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            background-color: var(--card-bg);
+            padding: 35px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
             width: 480px;
+            max-width: 100%;
+            box-sizing: border-box;
+            border: 1px solid rgba(255, 255, 255, 0.8);
         }
 
         h2 {
             margin-top: 0;
-            font-size: 1.3rem;
-            color: #007acc;
+            font-size: 1.4rem;
+            color: var(--primary);
+            letter-spacing: -0.025em;
         }
 
         .field-group {
-            margin-bottom: 16px;
+            margin-bottom: 18px;
         }
 
         label {
             display: block;
             margin-bottom: 6px;
             font-size: 0.85rem;
-            color: #cccccc;
+            font-weight: 600;
+            color: var(--text-muted);
         }
 
-        input[type="file"], select, input[type="range"] {
+        /* Drag and Drop Box Styling */
+        .drop-zone {
+            border: 2px dashed var(--border-color);
+            background: var(--dropzone-bg);
+            padding: 14px;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--primary);
+            background: var(--dropzone-hover);
+        }
+
+        .drop-zone input[type="file"] {
+            position: absolute;
             width: 100%;
-            background: #3c3c3c;
-            border: 1px solid #555555;
-            color: #fff;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .drop-zone-text {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .drop-zone-text strong {
+            color: var(--primary);
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            background: #f9fafb;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
             padding: 8px;
-            border-radius: 4px;
+            border-radius: 6px;
             box-sizing: border-box;
         }
 
@@ -59,80 +115,100 @@
             align-items: center;
             gap: 10px;
             margin-bottom: 12px;
+            background: #f9fafb;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
         }
 
         .checkbox-group input {
-            width: auto;
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
         }
 
         .checkbox-group label {
             margin-bottom: 0;
             cursor: pointer;
+            color: var(--text-main);
+            font-weight: 500;
         }
 
         button {
             width: 100%;
             padding: 12px;
-            background-color: #0e639c;
+            background-color: var(--primary);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 8px;
             font-size: 1rem;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, transform 0.1s;
             margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
         }
 
         button:hover {
-            background-color: #1177bb;
+            background-color: var(--primary-hover);
+        }
+
+        button:active {
+            transform: scale(0.98);
         }
 
         button:disabled {
-            background-color: #444;
+            background-color: #9ca3af;
             cursor: not-allowed;
+            box-shadow: none;
         }
 
         .secondary-btn {
-            background-color: #388a34;
-            margin-top: 8px;
+            background-color: var(--success);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+            margin-top: 12px;
         }
         .secondary-btn:hover {
-            background-color: #46a742;
+            background-color: var(--success-hover);
         }
 
         #status {
             margin-top: 15px;
             font-size: 0.85rem;
             word-wrap: break-word;
-            color: #9cdcfe;
+            color: var(--primary);
+            font-weight: 500;
+            text-align: center;
         }
 
         .range-container {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
         }
 
         .range-container span {
             font-size: 0.85rem;
-            color: #007acc;
+            color: var(--primary);
             font-weight: bold;
+            min-width: 35px;
         }
 
         /* Viewer Container styling */
         #viewerContainer {
             display: none;
             margin-top: 20px;
-            border-top: 1px solid #3c3c3c;
+            border-top: 1px solid var(--border-color);
             padding-top: 20px;
         }
 
         model-viewer {
             width: 100%;
-            height: 300px;
+            height: 320px;
             background-color: #111;
-            border-radius: 6px;
+            border-radius: 8px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
         }
     </style>
 
@@ -148,24 +224,33 @@
 <body>
 
 <div class="card">
-    <h2>Revit OBJ to Google Earth GLB</h2>
+    <h2>Revit to Google Earth GLB</h2>
     
     <div class="field-group">
-        <label for="objInput">1. Select OBJ File (*.obj):</label>
-        <input type="file" id="objInput" accept=".obj">
+        <label>1. Select OBJ File (*.obj):</label>
+        <div class="drop-zone" id="objDropZone">
+            <span class="drop-zone-text" id="objText"><strong>Choose file</strong> or drag & drop .obj here</span>
+            <input type="file" id="objInput" accept=".obj">
+        </div>
     </div>
 
     <div class="field-group">
-        <label for="mtlInput">2. Select MTL File (Optional):</label>
-        <input type="file" id="mtlInput" accept=".mtl">
+        <label>2. Select MTL File (Optional):</label>
+        <div class="drop-zone" id="mtlDropZone">
+            <span class="drop-zone-text" id="mtlText"><strong>Choose file</strong> or drag & drop .mtl here</span>
+            <input type="file" id="mtlInput" accept=".mtl">
+        </div>
     </div>
 
     <div class="field-group">
-        <label for="imgInput">3. Select Texture Maps (Optional):</label>
-        <input type="file" id="imgInput" accept="image/*" multiple>
+        <label>3. Select Texture Maps (Optional):</label>
+        <div class="drop-zone" id="imgDropZone">
+            <span class="drop-zone-text" id="imgText"><strong>Choose files</strong> or drag & drop images here</span>
+            <input type="file" id="imgInput" accept="image/*" multiple>
+        </div>
     </div>
 
-    <hr style="border: 0.5px solid #3c3c3c; margin: 20px 0;">
+    <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 20px 0;">
 
     <div class="field-group">
         <label for="brightness">Brightness Multiplier (Fixes Revit Dark Models):</label>
@@ -196,8 +281,8 @@
 
     <!-- Hidden Viewer and Download Section shown after conversion -->
     <div id="viewerContainer">
-        <label>4. Interactive 3D Preview:</label>
-        <model-viewer id="modelViewer" src="" alt="Converted Revit Model" auto-rotate camera-controls shadow-intensity="1"></model-viewer>
+        <label style="margin-bottom: 8px;">4. Interactive 3D Preview & AR:</label>
+        <model-viewer id="modelViewer" src="" alt="Converted Revit Model" auto-rotate camera-controls shadow-intensity="1" ar></model-viewer>
         <button id="downloadBtn" class="secondary-btn">Download .glb File</button>
     </div>
 </div>
@@ -211,6 +296,11 @@
     const objInput = document.getElementById('objInput');
     const mtlInput = document.getElementById('mtlInput');
     const imgInput = document.getElementById('imgInput');
+    
+    const objText = document.getElementById('objText');
+    const mtlText = document.getElementById('mtlText');
+    const imgText = document.getElementById('imgText');
+
     const brightnessInput = document.getElementById('brightness');
     const brightnessValue = document.getElementById('brightnessValue');
     const unlitToggle = document.getElementById('unlitToggle');
@@ -230,6 +320,59 @@
         brightnessValue.textContent = `${brightnessInput.value}x`;
     });
 
+    // Robust file assignment using DataTransfer so drag-and-drop and clicks both populate correctly
+    function setupDropZone(dropZoneId, inputEl, labelEl, isMultiple = false) {
+        const zone = document.getElementById(dropZoneId);
+
+        inputEl.addEventListener('change', () => {
+            if (inputEl.files.length > 0) {
+                if (isMultiple) {
+                    labelEl.innerHTML = `<strong>${inputEl.files.length} files selected</strong>`;
+                } else {
+                    labelEl.innerHTML = `<strong>${inputEl.files[0].name}</strong>`;
+                }
+                zone.style.borderColor = "var(--success)";
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            zone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            zone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+            }, false);
+        });
+
+        zone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const dataTransfer = new DataTransfer();
+                for (let i = 0; i < files.length; i++) {
+                    dataTransfer.items.add(files[i]);
+                }
+                inputEl.files = dataTransfer.files;
+
+                if (isMultiple) {
+                    labelEl.innerHTML = `<strong>${files.length} files selected</strong>`;
+                } else {
+                    labelEl.innerHTML = `<strong>${files[0].name}</strong>`;
+                }
+                zone.style.borderColor = "var(--success)";
+            }
+        });
+    }
+
+    setupDropZone('objDropZone', objInput, objText, false);
+    setupDropZone('mtlDropZone', mtlInput, mtlText, false);
+    setupDropZone('imgDropZone', imgInput, imgText, true);
+
     convertBtn.addEventListener('click', async () => {
         const objFile = objInput.files[0];
         const mtlFile = mtlInput.files[0];
@@ -240,6 +383,7 @@
             return;
         }
 
+        const startTime = performance.now();
         statusDiv.textContent = "Processing files...";
         convertBtn.disabled = true;
         viewerContainer.style.display = "none";
@@ -263,19 +407,19 @@
 
             if (mtlFile) {
                 statusDiv.textContent = "Parsing materials...";
-                const mtlText = await mtlFile.text();
+                const mtlTextContent = await mtlFile.text();
                 const mtlLoader = new MTLLoader(manager);
-                materials = mtlLoader.parse(mtlText, '');
+                materials = mtlLoader.parse(mtlTextContent, '');
                 materials.preload();
             }
 
             statusDiv.textContent = "Loading 3D model...";
-            const objText = await objFile.text();
+            const objTextContent = await objFile.text();
             const objLoader = new OBJLoader(manager);
             if (materials) {
                 objLoader.setMaterials(materials);
             }
-            const object = objLoader.parse(objText);
+            const object = objLoader.parse(objTextContent);
 
             statusDiv.textContent = "Optimizing materials and transparency...";
             const factor = parseFloat(brightnessInput.value);
@@ -333,11 +477,12 @@
                     generatedBlobUrl = URL.createObjectURL(blob);
                     outputFileName = objFile.name.replace(/\.obj$/i, '') + '_GE.glb';
 
-                    // Set viewer source and display the preview UI
+                    const elapsedTime = ((performance.now() - startTime) / 1000).toFixed(2);
+
                     modelViewer.src = generatedBlobUrl;
                     viewerContainer.style.display = "block";
 
-                    statusDiv.textContent = "Success! Model loaded in viewer below.";
+                    statusDiv.textContent = `✨ Success! Converted in ${elapsedTime}s & loaded below.`;
                     convertBtn.disabled = false;
                 },
                 (error) => {
@@ -353,7 +498,6 @@
         }
     });
 
-    // Manual download handler
     downloadBtn.addEventListener('click', () => {
         if (!generatedBlobUrl) return;
         const link = document.createElement('a');
