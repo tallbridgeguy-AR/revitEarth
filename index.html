@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Revit OBJ+MTL to Google Earth GLB Converter</title>
+    <!-- Google Model Viewer Component for In-Browser 3D / AR Preview -->
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -22,7 +24,7 @@
             padding: 30px;
             border-radius: 8px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-            width: 440px;
+            width: 480px;
         }
 
         h2 {
@@ -91,6 +93,14 @@
             cursor: not-allowed;
         }
 
+        .secondary-btn {
+            background-color: #388a34;
+            margin-top: 8px;
+        }
+        .secondary-btn:hover {
+            background-color: #46a742;
+        }
+
         #status {
             margin-top: 15px;
             font-size: 0.85rem;
@@ -108,6 +118,21 @@
             font-size: 0.85rem;
             color: #007acc;
             font-weight: bold;
+        }
+
+        /* Viewer Container styling */
+        #viewerContainer {
+            display: none;
+            margin-top: 20px;
+            border-top: 1px solid #3c3c3c;
+            padding-top: 20px;
+        }
+
+        model-viewer {
+            width: 100%;
+            height: 300px;
+            background-color: #111;
+            border-radius: 6px;
         }
     </style>
 
@@ -165,9 +190,16 @@
         <label for="rotateToggle">Fix Rotation (-90° X-Axis for glTF)</label>
     </div>
 
-    <button id="convertBtn">Export Optimized GLB</button>
+    <button id="convertBtn">Export & Preview GLB</button>
 
     <div id="status"></div>
+
+    <!-- Hidden Viewer and Download Section shown after conversion -->
+    <div id="viewerContainer">
+        <label>4. Interactive 3D Preview:</label>
+        <model-viewer id="modelViewer" src="" alt="Converted Revit Model" auto-rotate camera-controls shadow-intensity="1"></model-viewer>
+        <button id="downloadBtn" class="secondary-btn">Download .glb File</button>
+    </div>
 </div>
 
 <script type="module">
@@ -186,6 +218,13 @@
     const rotateToggle = document.getElementById('rotateToggle');
     const convertBtn = document.getElementById('convertBtn');
     const statusDiv = document.getElementById('status');
+    
+    const viewerContainer = document.getElementById('viewerContainer');
+    const modelViewer = document.getElementById('modelViewer');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let generatedBlobUrl = null;
+    let outputFileName = "model.glb";
 
     brightnessInput.addEventListener('input', () => {
         brightnessValue.textContent = `${brightnessInput.value}x`;
@@ -203,6 +242,7 @@
 
         statusDiv.textContent = "Processing files...";
         convertBtn.disabled = true;
+        viewerContainer.style.display = "none";
 
         try {
             const textureMap = new Map();
@@ -221,7 +261,6 @@
 
             let materials = null;
 
-            // 1. Parse MTL File
             if (mtlFile) {
                 statusDiv.textContent = "Parsing materials...";
                 const mtlText = await mtlFile.text();
@@ -230,7 +269,6 @@
                 materials.preload();
             }
 
-            // 2. Parse OBJ File
             statusDiv.textContent = "Loading 3D model...";
             const objText = await objFile.text();
             const objLoader = new OBJLoader(manager);
@@ -239,7 +277,6 @@
             }
             const object = objLoader.parse(objText);
 
-            // 3. Optimize Materials & Preserve Transparency
             statusDiv.textContent = "Optimizing materials and transparency...";
             const factor = parseFloat(brightnessInput.value);
             const makeUnlit = unlitToggle.checked;
@@ -248,12 +285,10 @@
             object.traverse((child) => {
                 if (child.isMesh && child.material) {
                     const processMat = (mat) => {
-                        // Preserve transparency state from original MTL
                         const isTransparent = mat.transparent || (mat.opacity < 1.0);
                         const matOpacity = mat.opacity !== undefined ? mat.opacity : 1.0;
 
                         let newMat;
-
                         if (makeUnlit) {
                             newMat = new THREE.MeshBasicMaterial({
                                 map: mat.map,
@@ -273,7 +308,6 @@
                                 side: makeDoubleSided ? THREE.DoubleSide : THREE.FrontSide
                             });
                         }
-
                         return newMat;
                     };
 
@@ -285,12 +319,10 @@
                 }
             });
 
-            // 4. Orientation Fix (Revit Z-Up to GLTF Y-Up)
             if (rotateToggle.checked) {
                 object.rotation.x = -Math.PI / 2;
             }
 
-            // 5. GLB Export
             statusDiv.textContent = "Generating GLB...";
             const exporter = new GLTFExporter();
             
@@ -298,12 +330,14 @@
                 object,
                 (gltf) => {
                     const blob = new Blob([gltf], { type: 'application/octet-stream' });
-                    const link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = objFile.name.replace(/\.obj$/i, '') + '_GE.glb';
-                    link.click();
+                    generatedBlobUrl = URL.createObjectURL(blob);
+                    outputFileName = objFile.name.replace(/\.obj$/i, '') + '_GE.glb';
 
-                    statusDiv.textContent = "Success! Optimized GLB exported.";
+                    // Set viewer source and display the preview UI
+                    modelViewer.src = generatedBlobUrl;
+                    viewerContainer.style.display = "block";
+
+                    statusDiv.textContent = "Success! Model loaded in viewer below.";
                     convertBtn.disabled = false;
                 },
                 (error) => {
@@ -317,6 +351,15 @@
             statusDiv.textContent = "Error: " + err.message;
             convertBtn.disabled = false;
         }
+    });
+
+    // Manual download handler
+    downloadBtn.addEventListener('click', () => {
+        if (!generatedBlobUrl) return;
+        const link = document.createElement('a');
+        link.href = generatedBlobUrl;
+        link.download = outputFileName;
+        link.click();
     });
 </script>
 
